@@ -1,42 +1,39 @@
 name: Deploy MultiDocker
-
 on:
   push:
     branches:
-      - main # Check your repo's default branch; it might be master!
+      - main # check your repo, your default branch might be master!
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      # Step 1: Checkout the repository
       - uses: actions/checkout@v3
+      - run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+      - run: docker build -t rallycoding/react-test-up -f ./client/Dockerfile.dev ./client
+      - run: docker run -e CI=true rallycoding/react-test-up npm test
 
-      # Step 2: Log in to Docker Hub (using password-stdin)
-      - name: Log in to Docker Hub
-        run: echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+      - run: docker build -t rallycoding/multi-client-up ./client
+      - run: docker build -t rallycoding/multi-nginx-up ./nginx
+      - run: docker build -t rallycoding/multi-server-up ./server
+      - run: docker build -t rallycoding/multi-worker-up ./worker
 
-      # Step 3: Build client image for testing
-      - name: Build React Client Image for Testing
-        run: docker build -t rallycoding/react-test -f ./client/Dockerfile.dev ./client
+      - run: docker push rallycoding/multi-client-up
+      - run: docker push rallycoding/multi-nginx-up
+      - run: docker push rallycoding/multi-server-up
+      - run: docker push rallycoding/multi-worker-up
 
-      # Step 4: Run tests on the client
-      - name: Run Tests
-        run: docker run -e CI=true rallycoding/react-test npm test
+      - name: Generate deployment package
+        run: zip -r deploy.zip . -x '*.git*'
 
-      # Step 5: Build multi-container images
-      - name: Build Multi Docker Images
-        run: |
-          docker build -t rallycoding/multi-client ./client
-          docker build -t rallycoding/multi-nginx ./nginx
-          docker build -t rallycoding/multi-server ./server
-          docker build -t rallycoding/multi-worker ./worker
-
-      # Step 6: Push Docker images to Docker Hub
-      - name: Push Docker Images
-        run: |
-          docker push rallycoding/multi-client
-          docker push rallycoding/multi-nginx
-          docker push rallycoding/multi-server
-          docker push rallycoding/multi-worker
+      - name: Deploy to EB
+        uses: einaregilsson/beanstalk-deploy@v18
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_KEY }}
+          application_name: multi-docker
+          environment_name: Multi-docker-env
+          existing_bucket_name: elasticbeanstalk-us-east-1-923445559289
+          region: us-east-1
+          version_label: ${{ github.sha }}
+          deployment_package: deploy.zip
