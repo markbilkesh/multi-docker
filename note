@@ -1,0 +1,3 @@
+PGUSER : postgres
+PGPASSWORD : postgrespassword
+PGDATABASE : fibvalues

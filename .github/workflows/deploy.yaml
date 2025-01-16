@@ -1,4 +1,5 @@
 name: Deploy MultiDocker
+
 on:
   push:
     branches:
@@ -9,7 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
+      # Log in to Docker Hub
       - run: echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+
+      # Build Docker images
       - run: docker build -t markbilkesh/react-test-up -f ./client/Dockerfile.dev ./client
       - run: docker run -e CI=true markbilkesh/react-test-up npm test
 
@@ -18,22 +23,25 @@ jobs:
       - run: docker build -t markbilkesh/multi-server-up ./server
       - run: docker build -t markbilkesh/multi-worker-up ./worker
 
+      # Push Docker images to Docker Hub
       - run: docker push markbilkesh/multi-client-up
       - run: docker push markbilkesh/multi-nginx-up
       - run: docker push markbilkesh/multi-server-up
       - run: docker push markbilkesh/multi-worker-up
 
-      ##- name: Generate deployment package
-      ##  run: zip -r deploy.zip . -x '*.git*'
+      # Generate deployment package
+      - name: Generate deployment package
+        run: zip -r deploy.zip . -x '*.git*'
 
-      ##- name: Deploy to EB
-      ##uses: einaregilsson/beanstalk-deploy@v18
-      ## with:
-      ## aws_access_key: ${{ secrets.AWS_ACCESS_KEY }}
-      ##aws_secret_key: ${{ secrets.AWS_SECRET_KEY }}
-      ##application_name: multi-docker
-      ##environment_name: Multi-docker-env
-      ##existing_bucket_name: elasticbeanstalk-us-east-1-923445559289
-      ##region: us-east-1
-      ##version_label: ${{ github.sha }}
-      ##deployment_package: deploy.zip
+      # Deploy to Elastic Beanstalk
+      - name: Deploy to EB
+        uses: einaregilsson/beanstalk-deploy@v18
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_KEY }}
+          application_name: multi-docker
+          environment_name: Multi-docker-env-2
+          existing_bucket_name: elasticbeanstalk-ap-south-1-194722446569
+          region: ap-south-1
+          version_label: ${{ github.sha }}
+          deployment_package: deploy.zip
